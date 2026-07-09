@@ -53,26 +53,21 @@ def _exit_code_file(run_id: str) -> Path:
 
 
 def _watch_process(proc: subprocess.Popen, run_id: str) -> None:
-    """Wait for run_assessment.sh to finish and record its exit code."""
+    """Wait for run_engine.sh to finish and record its exit code."""
     exit_code = proc.wait()
     _exit_code_file(run_id).write_text(str(exit_code))
 
 
 def _start_run(payload: dict) -> dict:
-    provider = payload.get("provider")
-    model = payload.get("model")
-    api_key = payload.get("api_key")
     client_instruction = payload.get("client_instruction")
-    instructions = payload.get("instructions", "instructions")
+    location = payload.get("location", client_instruction)
     data_files = payload.get("data_files", {})
     run_id = str(payload.get("run") or _next_run_id())
 
     if not RUN_ID_RE.match(run_id):
         raise ValueError("invalid run id")
-    if not all([provider, model, api_key, client_instruction]):
-        raise ValueError(
-            "provider, model, api_key and client_instruction are required"
-        )
+    if not client_instruction:
+        raise ValueError("client_instruction is required")
     if not isinstance(data_files, dict):
         raise ValueError("data_files must be an object of filename -> content")
 
@@ -88,20 +83,13 @@ def _start_run(payload: dict) -> dict:
             raise ValueError(f"invalid data file name: {filename}")
         (run_dir / filename).write_text(content)
 
-    instructions_path = Path(instructions)
-    if not instructions_path.is_absolute():
-        instructions_path = ENGINE_DIR / instructions_path
-
     log_path = run_dir / "api_log.txt"
     with open(log_path, "wb") as log_file:
         proc = subprocess.Popen(
             [
-                str(ENGINE_DIR / "run_assessment.sh"),
+                str(SCRIPT_DIR / "run_engine.sh"),
                 "--run", run_id,
-                "--provider", provider,
-                "--model", model,
-                "--api-key", api_key,
-                "--instructions", str(instructions_path),
+                "--location", location,
             ],
             cwd=str(ENGINE_DIR),
             stdout=log_file,
