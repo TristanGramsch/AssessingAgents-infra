@@ -6,10 +6,10 @@
 # using a coding harness (default: forge).  The harness gives each agent a
 # working directory so it can read previous outputs and write its own files.
 #
-# API-key agnostic — reads LLM_PROVIDER, LLM_MODEL, LLM_API_KEY from env.
+# API-key agnostic — reads LLM_PROVIDER, LLM_MODEL, INFRA_API_KEY from env.
 #
 # Usage:
-#   LLM_API_KEY="sk-..." ./run_engine.sh --run 1 --location Tralaland
+#   INFRA_API_KEY="sk-..." ./run_engine.sh --run 1 --location Tralaland
 #
 set -euo pipefail
 
@@ -105,13 +105,13 @@ fi
 # ---------------------------------------------------------------------------
 # 6. LLM configuration (agnostic — all from env)
 # ---------------------------------------------------------------------------
-PROVIDER="${LLM_PROVIDER:-openrouter}"
+PROVIDER="${LLM_PROVIDER:-requesty}"
 MODEL="${LLM_MODEL:-deepseek-v4-pro}"
-API_KEY="${LLM_API_KEY:-}"
+API_KEY="${INFRA_API_KEY:-}"
 
-[[ -z "$API_KEY" ]] && echo "ERROR: LLM_API_KEY environment variable is not set" && exit 1
+[[ -z "$API_KEY" ]] && echo "ERROR: INFRA_API_KEY environment variable is not set" && exit 1
 
-# Export provider-specific key (forge expects e.g. OPENROUTER_API_KEY)
+# Export provider-specific key (forge expects e.g. REQUESTY_API_KEY)
 PROVIDER_KEY_VAR="$(echo "${PROVIDER}" | tr '[:lower:]' '[:upper:]')_API_KEY"
 export "${PROVIDER_KEY_VAR}=${API_KEY}"
 
@@ -173,6 +173,12 @@ PROMPT
         echo "1" > "${RUN_DIR}/.exit_code"
         exit 1
     }
+
+    # Strip ANSI escape sequences and Forge spinner lines from the log
+    sed -i \
+        -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' \
+        -e '/· Ctrl+C to interrupt/d' \
+        "$STEP_LOG"
 
     # Append to master log
     {

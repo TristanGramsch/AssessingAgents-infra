@@ -78,10 +78,12 @@ def _start_run(payload: dict) -> dict:
 
     (run_dir / "client_instruction.txt").write_text(client_instruction)
 
+    location_dir = ENGINE_DIR / "locations" / location
+    location_dir.mkdir(parents=True, exist_ok=True)
     for filename, content in data_files.items():
         if not FILENAME_RE.match(filename):
             raise ValueError(f"invalid data file name: {filename}")
-        (run_dir / filename).write_text(content)
+        (location_dir / filename).write_text(content)
 
     log_path = run_dir / "api_log.txt"
     with open(log_path, "wb") as log_file:
