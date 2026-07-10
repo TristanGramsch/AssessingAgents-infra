@@ -174,10 +174,11 @@ PROMPT
         exit 1
     }
 
-    # Strip ANSI escape sequences and Forge spinner lines from the log
+    # Strip ANSI escape sequences, Forge spinner lines, and carriage returns
     sed -i \
         -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' \
         -e '/· Ctrl+C to interrupt/d' \
+        -e 's/\r//g' \
         "$STEP_LOG"
 
     # Append to master log

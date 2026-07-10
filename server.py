@@ -21,7 +21,9 @@ import hmac
 import json
 import os
 import re
+import signal
 import subprocess
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -34,6 +36,19 @@ API_KEY = os.environ.get("INFRA_API_KEY")
 
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 FILENAME_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
+
+# Track child processes so we can kill them on shutdown
+_child_processes: set[subprocess.Popen] = set()
+
+
+def _shutdown(_signum, _frame):
+    """Kill all tracked child processes and exit."""
+    for proc in list(_child_processes):
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+    sys.exit(0)
 
 
 def _next_run_id() -> str:
@@ -53,9 +68,10 @@ def _exit_code_file(run_id: str) -> Path:
 
 
 def _watch_process(proc: subprocess.Popen, run_id: str) -> None:
-    """Wait for run_engine.sh to finish and record its exit code."""
+    """Wait for run_engine.sh to finish, record its exit code, and clean up."""
     exit_code = proc.wait()
     _exit_code_file(run_id).write_text(str(exit_code))
+    _child_processes.discard(proc)
 
 
 def _start_run(payload: dict) -> dict:
@@ -99,6 +115,7 @@ def _start_run(payload: dict) -> dict:
         )
 
     threading.Thread(target=_watch_process, args=(proc, run_id), daemon=True).start()
+    _child_processes.add(proc)
 
     return {"run": run_id, "status": "started"}
 
@@ -217,6 +234,9 @@ def main():
 
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8080"))
+
+    signal.signal(signal.SIGINT, _shutdown)
+    signal.signal(signal.SIGTERM, _shutdown)
 
     server = ThreadingHTTPServer((host, port), Handler)
     print(f"AssessingAgents API listening on {host}:{port}, engine at {ENGINE_DIR}")
